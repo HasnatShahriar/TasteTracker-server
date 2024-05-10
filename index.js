@@ -28,6 +28,7 @@ async function run() {
     // await client.connect();
 
     const foodCollection = client.db('tasteTracker').collection('foods')
+    const foodPurchaseCollection = client.db('tasteTracker').collection('purchase')
 
     // get all foods data from db
     app.get('/foods', async (req, res) => {
@@ -39,8 +40,16 @@ async function run() {
     // get a single food data from db
     app.get('/food/:id', async (req, res) => {
       const id = req.params.id
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await foodCollection.findOne(query)
+      res.send(result)
+    })
+
+    // purchase 
+    app.post('/purchase', async (req, res) => {
+      const purchase = req.body
+      // console.log(purchase);
+      const result = await foodPurchaseCollection.insertOne(purchase)
       res.send(result)
     })
 
