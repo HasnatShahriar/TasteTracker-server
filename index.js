@@ -37,6 +37,19 @@ async function run() {
       res.send(result)
     })
 
+    app.post('/foods', async (req, res) => {
+      const newFood = req.body;
+      console.log(newFood);
+      const result = await foodCollection.insertOne(newFood);
+      res.send(result);
+    })
+
+    app.get('/foods/:email', async (req, res) => {
+      console.log(req.params.email);
+      const result = await foodCollection.find({ email: req.params.email }).toArray();
+      res.send(result);
+    })
+
     // get a single food data from db
     app.get('/food/:id', async (req, res) => {
       const id = req.params.id
@@ -52,6 +65,49 @@ async function run() {
       const result = await foodPurchaseCollection.insertOne(purchase)
       res.send(result)
     })
+
+
+    app.get('/purchase', async (req, res) => {
+      const cursor = foodPurchaseCollection.find();
+      const result = await cursor.toArray();
+      res.send(result)
+    })
+
+
+    app.get('/purchase/:email', async (req, res) => {
+      console.log(req.params.email);
+      const result = await foodPurchaseCollection.find({ buyerEmail: req.params.email }).toArray();
+      res.send(result);
+    })
+
+    app.patch('/food/:id',async(req,res)=>{
+      const id = req.params.id
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedFood = req.body;
+      const food = {
+        $set: {
+          foodName: updatedFood.foodName,
+          image: updatedFood.image,
+          category: updatedFood.category,
+          description: updatedFood.description,
+          price: updatedFood.price,
+          origin: updatedFood.origin,
+          quantity: updatedFood.quantity,
+        }
+      }
+
+      const result = await foodCollection.updateOne(filter, food, options);
+      res.send(result);
+    })
+
+    app.delete('/purchase/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await foodPurchaseCollection.deleteOne(query)
+      res.send(result)
+    })
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
