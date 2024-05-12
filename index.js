@@ -45,6 +45,13 @@ async function run() {
       res.send(result);
     })
 
+
+    app.get('/images', async (req, res) => {
+      const cursor = imageCollection.find();
+      const result = await cursor.toArray();
+      res.send(result)
+    })
+
     app.post('/images', async (req, res) => {
       const newImage = req.body;
       console.log(newImage);
