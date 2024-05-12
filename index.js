@@ -29,6 +29,7 @@ async function run() {
 
     const foodCollection = client.db('tasteTracker').collection('foods')
     const foodPurchaseCollection = client.db('tasteTracker').collection('purchase')
+    const imageCollection = client.db('tasteTracker').collection('images')
 
     // get all foods data from db
     app.get('/foods', async (req, res) => {
@@ -41,6 +42,13 @@ async function run() {
       const newFood = req.body;
       console.log(newFood);
       const result = await foodCollection.insertOne(newFood);
+      res.send(result);
+    })
+
+    app.post('/images', async (req, res) => {
+      const newImage = req.body;
+      console.log(newImage);
+      const result = await imageCollection.insertOne(newImage);
       res.send(result);
     })
 
