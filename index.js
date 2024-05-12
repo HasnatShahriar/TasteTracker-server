@@ -95,7 +95,7 @@ async function run() {
       res.send(result);
     })
 
-    app.patch('/food/:id',async(req,res)=>{
+    app.patch('/food/:id', async (req, res) => {
       const id = req.params.id
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
@@ -118,10 +118,28 @@ async function run() {
 
     app.delete('/purchase/:id', async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await foodPurchaseCollection.deleteOne(query)
       res.send(result)
     })
+
+
+    // Search foods by name
+    app.get('/search', async (req, res) => {
+      const foodName = req.query.foodName;
+
+      try {
+        const cursor = foodCollection.find({ foodName: { $regex: foodName, $options: 'i' } });
+        const result = await cursor.toArray();
+        res.send(result);
+      } catch (error) {
+        console.error('Error searching foods:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+
+
 
 
     // Send a ping to confirm a successful connection
