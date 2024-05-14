@@ -1,12 +1,25 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken')
+// const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const app = express();
 const port = process.env.PORT || 5000;
 
+// const corsOptions = {
+//   origin: ['http://localhost:5173','http://localhost:5174','https://taste-tracker2024.netlify.app'],
+//   credentials: true,
+//   optionSuccessStatus: 200,
+// }
+
 // middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173','http://localhost:5174'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 
@@ -31,6 +44,27 @@ async function run() {
     const foodPurchaseCollection = client.db('tasteTracker').collection('purchase')
     const imageCollection = client.db('tasteTracker').collection('images')
 
+
+    // jwt generate
+    app.post('/jwt', async(req,res)=>{
+      const user = req.body;
+      console.log('user for token',user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
+        expiresIn: '7d'
+      });
+      res.cookie('token',token,{
+        httpOnly: true,
+        // secure: process.env.NODE_ENV === 'production',
+        // sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        secure: true,
+        sameSite: 'none'
+      })
+      .send({success: true})
+      
+    })
+
+    
+
     // get all foods data from db
     app.get('/foods', async (req, res) => {
       const cursor = foodCollection.find();
@@ -40,7 +74,7 @@ async function run() {
 
     app.post('/foods', async (req, res) => {
       const newFood = req.body;
-      console.log(newFood);
+      // console.log(newFood);
       const result = await foodCollection.insertOne(newFood);
       res.send(result);
     })
@@ -54,14 +88,16 @@ async function run() {
 
     app.post('/images', async (req, res) => {
       const newImage = req.body;
-      console.log(newImage);
+      // console.log(newImage);
       const result = await imageCollection.insertOne(newImage);
       res.send(result);
     })
 
     app.get('/foods/:email', async (req, res) => {
-      console.log(req.params.email);
-      const result = await foodCollection.find({ email: req.params.email }).toArray();
+      // console.log(req.params.email);
+      const email = req.params.email
+      const query = {email: email}
+      const result = await foodCollection.find(query).toArray();
       res.send(result);
     })
 
@@ -87,13 +123,19 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result)
     })
-
-
+    
     app.get('/purchase/:email', async (req, res) => {
-      console.log(req.params.email);
+      // console.log(req.params.email);
       const result = await foodPurchaseCollection.find({ buyerEmail: req.params.email }).toArray();
       res.send(result);
     })
+
+    // top selling foods
+
+    app.get('/purchases', async (req, res) => {
+      const result = await foodPurchaseCollection.find().sort({ purchaseQuantity: -1 }).limit(6).toArray();
+      res.send(result)
+    });
 
     app.patch('/food/:id', async (req, res) => {
       const id = req.params.id
@@ -139,7 +181,28 @@ async function run() {
     });
 
 
+    // purchase count
+    // app.post('/purchase', async (req, res) => {
+    //   const purchase = req.body;
+      
+    //   try {
+    //     // Insert the purchase record
+    //     const result = await foodPurchaseCollection.insertOne(purchase);
+        
+    //     // Update the order count for the purchased food item
+    //     const filter = { _id: new ObjectId(purchase.foodId) };
+    //     const update = { $inc: { orderCount: 1 } };
+    //     await foodCollection.updateOne(filter, update);
+        
+    //     res.send(result);
+    //   } catch (error) {
+    //     console.error("Error purchasing food:", error);
+    //     res.status(500).json({ error: "Internal server error" });
+    //   }
+    // });
 
+
+    
 
 
     // Send a ping to confirm a successful connection
