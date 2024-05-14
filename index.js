@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken')
-// const cookieParser = require('cookie-parser')
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const app = express();
@@ -16,11 +16,12 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors({
   origin: [
-    'http://localhost:5173','http://localhost:5174'
+    'http://localhost:5173','http://localhost:5174','https://taste-tracker2024.netlify.app'
   ],
   credentials: true
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 
 
@@ -35,6 +36,28 @@ const client = new MongoClient(uri, {
   }
 });
 
+// middlewares
+const logger = (req,res,next)=>{
+  console.log('log: info',req.method,req.url);
+  next();
+}
+
+const verifyToken =(req,res,next)=>{
+  const token = req?.cookies?.token;
+  console.log('token in the middleware',token);
+  if(!token){
+    return req.status(401).send({message: 'unauthorized access'})
+  }
+  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,decoded) =>{
+    if(err){
+      return res.status(401).send({message:'unauthorized access'})
+    }
+    req.user = decoded;
+    next();
+  })
+ 
+}
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -45,25 +68,30 @@ async function run() {
     const imageCollection = client.db('tasteTracker').collection('images')
 
 
-    // jwt generate
-    app.post('/jwt', async(req,res)=>{
+    app.post('/jwt', logger, async (req, res) => {
+      try {
+        const user = req.body;
+        console.log('user for token', user);
+        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+          expiresIn: '7d'
+        });
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        }).send({ success: true });
+      } catch (err) {
+        console.error("Error generating JWT:", err);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    app.post('/logout',logger, async(req,res)=>{
       const user = req.body;
-      console.log('user for token',user);
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
-        expiresIn: '7d'
-      });
-      res.cookie('token',token,{
-        httpOnly: true,
-        // secure: process.env.NODE_ENV === 'production',
-        // sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        secure: true,
-        sameSite: 'none'
-      })
-      .send({success: true})
-      
+      console.log('logging out',user);
+      res.clearCookie('token',{maxAge: 0}).send({success: true})
     })
 
-    
 
     // get all foods data from db
     app.get('/foods', async (req, res) => {
@@ -95,7 +123,8 @@ async function run() {
 
     app.get('/foods/:email', async (req, res) => {
       // console.log(req.params.email);
-      const email = req.params.email
+      const email = req.params.email;
+
       const query = {email: email}
       const result = await foodCollection.find(query).toArray();
       res.send(result);
@@ -118,14 +147,18 @@ async function run() {
     })
 
 
-    app.get('/purchase', async (req, res) => {
+    app.get('/purchase',logger, async (req, res) => {
       const cursor = foodPurchaseCollection.find();
       const result = await cursor.toArray();
       res.send(result)
     })
     
-    app.get('/purchase/:email', async (req, res) => {
+    app.get('/purchase/:email',verifyToken,logger, async (req, res) => {
       // console.log(req.params.email);
+      console.log('token owner info',req.user);
+      if(req.user.email !== req.query.email){
+        return res.status(403).send({message: 'forbidden access'})
+      }
       const result = await foodPurchaseCollection.find({ buyerEmail: req.params.email }).toArray();
       res.send(result);
     })
