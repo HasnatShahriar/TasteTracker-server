@@ -1,25 +1,24 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser');
+const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const app = express();
 const port = process.env.PORT || 5000;
 
-// const corsOptions = {
-//   origin: ['http://localhost:5173','http://localhost:5174','https://taste-tracker2024.netlify.app'],
-//   credentials: true,
-//   optionSuccessStatus: 200,
-// }
 
 // middleware
-app.use(cors({
-  origin: [
-    'http://localhost:5173','http://localhost:5174','https://taste-tracker2024.netlify.app'
+const corsOptions = {
+  origin: ["http://localhost:5173",
+    "http://localhost:5174",
+    'https://taste-tracker2024.netlify.app'
   ],
-  credentials: true
-}));
+  credentials: true,
+  optionsSuccessStatus: 200,
+
+}
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -37,25 +36,30 @@ const client = new MongoClient(uri, {
 });
 
 // middlewares
-const logger = (req,res,next)=>{
-  console.log('log: info',req.method,req.url);
+const logger = (req, res, next) => {
+  console.log('log: info', req.host, req.originalUrl);
   next();
 }
 
-const verifyToken =(req,res,next)=>{
-  const token = req?.cookies?.token;
-  console.log('token in the middleware',token);
-  if(!token){
-    return req.status(401).send({message: 'unauthorized access'})
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+  console.log('token in the middleware', token);
+  if (!token) {
+    return req.status(401).send({ message: 'unauthorized access' })
   }
-  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,decoded) =>{
-    if(err){
-      return res.status(401).send({message:'unauthorized access'})
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+
+    // error
+    if (err) {
+      console.log(err);
+      return res.status(401).send({ message: 'unauthorized access' })
     }
+    // if token is valid
+    console.log('value in the token', decoded);
     req.user = decoded;
     next();
   })
- 
+
 }
 
 async function run() {
@@ -67,29 +71,30 @@ async function run() {
     const foodPurchaseCollection = client.db('tasteTracker').collection('purchase')
     const imageCollection = client.db('tasteTracker').collection('images')
 
-
+    //jwt generator
     app.post('/jwt', logger, async (req, res) => {
-      try {
-        const user = req.body;
-        console.log('user for token', user);
-        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-          expiresIn: '7d'
-        });
-        res.cookie('token', token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        }).send({ success: true });
-      } catch (err) {
-        console.error("Error generating JWT:", err);
-        res.status(500).json({ error: "Internal server error" });
-      }
-    });
+      const user = req.body
+      console.log(user);
 
-    app.post('/logout',logger, async(req,res)=>{
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: '1d'
+      });
+
+      res
+        .cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production' ? true : false,
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        })
+        .send({ success: true })
+    })
+
+
+
+    app.post('/logout', async (req, res) => {
       const user = req.body;
-      console.log('logging out',user);
-      res.clearCookie('token',{maxAge: 0}).send({success: true})
+      console.log('logging out', user);
+      res.clearCookie('token', { maxAge: 0 }).send({ success: true })
     })
 
 
@@ -121,11 +126,17 @@ async function run() {
       res.send(result);
     })
 
-    app.get('/foods/:email', async (req, res) => {
+    app.get('/foods/:email', verifyToken, logger, async (req, res) => {
       // console.log(req.params.email);
-      const email = req.params.email;
 
-      const query = {email: email}
+      console.log('token owner info', req.user);
+      if (req.params.email !== req.user.email) {
+        return res.status(403).send({ message: 'forbidden access' })
+      }
+
+
+      const email = req.params.email;
+      const query = { email: email }
       const result = await foodCollection.find(query).toArray();
       res.send(result);
     })
@@ -147,17 +158,17 @@ async function run() {
     })
 
 
-    app.get('/purchase',logger, async (req, res) => {
+    app.get('/purchase', async (req, res) => {
       const cursor = foodPurchaseCollection.find();
       const result = await cursor.toArray();
       res.send(result)
     })
-    
-    app.get('/purchase/:email',verifyToken,logger, async (req, res) => {
-      // console.log(req.params.email);
-      console.log('token owner info',req.user);
-      if(req.user.email !== req.query.email){
-        return res.status(403).send({message: 'forbidden access'})
+
+    app.get('/purchase/:email', verifyToken, logger, async (req, res) => {
+      console.log(req.params.email);
+      // console.log('token owner info', req.user);
+      if (req.params.email !== req.user.email) {
+        return res.status(403).send({ message: 'forbidden access' })
       }
       const result = await foodPurchaseCollection.find({ buyerEmail: req.params.email }).toArray();
       res.send(result);
@@ -169,6 +180,8 @@ async function run() {
       const result = await foodPurchaseCollection.find().sort({ purchaseQuantity: -1 }).limit(6).toArray();
       res.send(result)
     });
+
+    // update
 
     app.patch('/food/:id', async (req, res) => {
       const id = req.params.id
@@ -190,6 +203,8 @@ async function run() {
       const result = await foodCollection.updateOne(filter, food, options);
       res.send(result);
     })
+
+    // delete
 
     app.delete('/purchase/:id', async (req, res) => {
       const id = req.params.id;
@@ -213,29 +228,6 @@ async function run() {
       }
     });
 
-
-    // purchase count
-    // app.post('/purchase', async (req, res) => {
-    //   const purchase = req.body;
-      
-    //   try {
-    //     // Insert the purchase record
-    //     const result = await foodPurchaseCollection.insertOne(purchase);
-        
-    //     // Update the order count for the purchased food item
-    //     const filter = { _id: new ObjectId(purchase.foodId) };
-    //     const update = { $inc: { orderCount: 1 } };
-    //     await foodCollection.updateOne(filter, update);
-        
-    //     res.send(result);
-    //   } catch (error) {
-    //     console.error("Error purchasing food:", error);
-    //     res.status(500).json({ error: "Internal server error" });
-    //   }
-    // });
-
-
-    
 
 
     // Send a ping to confirm a successful connection
