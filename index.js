@@ -133,8 +133,6 @@ async function run() {
       if (req.params.email !== req.user.email) {
         return res.status(403).send({ message: 'forbidden access' })
       }
-
-
       const email = req.params.email;
       const query = { email: email }
       const result = await foodCollection.find(query).toArray();
@@ -170,9 +168,11 @@ async function run() {
       if (req.params.email !== req.user.email) {
         return res.status(403).send({ message: 'forbidden access' })
       }
+
       const result = await foodPurchaseCollection.find({ buyerEmail: req.params.email }).toArray();
       res.send(result);
     })
+
 
     // top selling foods
 
@@ -214,6 +214,13 @@ async function run() {
     })
 
 
+    app.delete('/foods/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const result = await foodCollection.deleteOne(query)
+      res.send(result)
+    })
+
     // Search foods by name
     app.get('/search', async (req, res) => {
       const foodName = req.query.foodName;
@@ -227,7 +234,6 @@ async function run() {
         res.status(500).json({ error: 'Internal server error' });
       }
     });
-
 
 
     // Send a ping to confirm a successful connection
